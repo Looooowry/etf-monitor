@@ -1,0 +1,33 @@
+name: ETF MACD Monitor
+
+on:
+  schedule:
+    # 国际标准时间 (UTC) 07:15 对应北京时间 15:15
+    # 每天收盘后自动运行一次
+    - cron: '15 7 * * 1-5'
+  # 允许你手动点击按钮测试运行
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        
+    - name: Run Monitor
+      env:
+        WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
+        WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+      run: |
+        python monitor.py
