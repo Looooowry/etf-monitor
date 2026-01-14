@@ -104,4 +104,9 @@ def check_strategy():
         print("今日无交易信号。")
 
 if __name__ == "__main__":
+    # 【新增】这两行是强制测试代码
+    print("正在发送测试消息...")
+    send_wxpusher("测试成功", "恭喜！如果你看到这条消息，说明你的 GitHub Actions 监控机器人已经活了！")
+
+    # 原来的策略检查
     check_strategy()
