@@ -96,12 +96,21 @@ def check_strategy():
                        f"恒生科技ETF (515980)<br>"
                        f"<hr>{info_msg}")
     
-    # 4. 发送通知
+# 4. 发送通知逻辑修改版
     if msg_title:
+        # 有交易信号，强制推送，高亮显示
         print("检测到信号，正在推送...")
         send_wxpusher(msg_title, msg_content)
+        
     else:
-        print("今日无交易信号。")
+        # --- 新增：每日平安推送 ---
+        # 就算没有信号，也发一条消息，证明程序还活着，且 akshare 数据获取正常
+        print("今日无信号，发送日常检查...")
+        daily_title = f"监控正常: {ETF_CODE}"
+        daily_content = (f"系统运行正常，今日无交易信号。<br>"
+                         f"<hr>{info_msg}") # 把当天的DIF/DEA值发给你看看
+        
+        send_wxpusher(daily_title, daily_content)
 
 if __name__ == "__main__":
     # 【新增】这两行是强制测试代码
