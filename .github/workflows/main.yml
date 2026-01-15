@@ -42,5 +42,6 @@ jobs:
       env:
         WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
         WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+        IMGBB_KEY: ${{ secrets.IMGBB_KEY }}
       run: |
         python chart_monitor.py
