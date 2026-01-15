@@ -118,7 +118,7 @@ def check_strategy():
     else:
         # 每日心跳 (可选)
         print("无信号")
-        # send_wxpusher(f"监控正常 {curr_day['date']}", info_msg) # 如果嫌烦可以注释掉
+        send_wxpusher(f"监控正常 {curr_day['date']}", info_msg) # 如果嫌烦可以注释掉
 
 if __name__ == "__main__":
     check_strategy()
