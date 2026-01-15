@@ -1,24 +1,25 @@
 import akshare as ak
 import pandas as pd
 import matplotlib
-# 【关键】设置后端为 Agg，这样服务器没屏幕也能画图
-matplotlib.use('Agg') 
+matplotlib.use('Agg') # 后台绘图模式
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import datetime
 import requests
 import os
+import subprocess
+import time
 
 # ================= 配置区域 =================
 WXPUSHER_TOKEN = os.environ.get('WXPUSHER_TOKEN', '')
 WXPUSHER_UID = os.environ.get('WXPUSHER_UID', '')
+# GitHub 自动提供的环境变量
+GITHUB_REPO = os.environ.get('GITHUB_REPOSITORY') # 格式: 用户名/仓库名
 
 # 策略参数
-view_start_date = '2024-12-30' # 你可以根据需要修改这个查看起始日
+view_start_date = '2024-12-30'
 lag_days = 150
 fetch_start_date = '2023-01-01'
-
-# 锚点对齐参数
 anchor_hstech = 6700
 anchor_ratio = 160
 ratio_factor = anchor_ratio / anchor_hstech
@@ -27,48 +28,59 @@ hstech_ylim_bottom = 2500
 
 # ================= 核心功能函数 =================
 
-def upload_image_to_catbox(file_path):
+def push_image_to_github(file_path):
     """
-    将图片上传到 Catbox 图床 (免费、长期、无需key)
-    返回图片 URL
+    将生成的图片提交到 GitHub 仓库
     """
     try:
-        url = "https://catbox.moe/user/api.php"
-        data = {'reqtype': 'fileupload', 'userhash': ''}
-        with open(file_path, 'rb') as f:
-            files = {'fileToUpload': f}
-            print("正在上传图片到图床...")
-            response = requests.post(url, data=data, files=files)
-            if response.status_code == 200:
-                img_url = response.text
-                print(f"图片上传成功: {img_url}")
-                return img_url
-            else:
-                print(f"上传失败: {response.text}")
-                return None
+        print("正在将图片推送到 GitHub...")
+        # 配置 git 用户（必须步骤）
+        subprocess.run(["git", "config", "--global", "user.email", "action@github.com"], check=True)
+        subprocess.run(["git", "config", "--global", "user.name", "GitHub Action"], check=True)
+        
+        # 添加文件、提交、推送
+        subprocess.run(["git", "add", file_path], check=True)
+        # 允许空提交（如果没有变化）
+        subprocess.run(["git", "commit", "-m", f"Update chart: {datetime.datetime.now()}"], check=False)
+        subprocess.run(["git", "push"], check=True)
+        print("图片推送成功")
+        return True
     except Exception as e:
-        print(f"上传过程出错: {e}")
+        print(f"Git 推送失败: {e}")
+        return False
+
+def get_cdn_url(filename):
+    """
+    构造 jsDelivr 加速链接
+    格式: https://cdn.jsdelivr.net/gh/用户/仓库@main/文件名
+    """
+    if not GITHUB_REPO:
+        print("无法获取仓库信息")
         return None
+    
+    # 加上时间戳参数 ?v=... 是为了防止微信缓存旧图片，强制刷新
+    timestamp = int(time.time())
+    url = f"https://cdn.jsdelivr.net/gh/{GITHUB_REPO}@main/{filename}?v={timestamp}"
+    return url
 
 def send_wxpusher_image(img_url, summary):
-    """发送包含图片的通知"""
     url = "http://wxpusher.zjiecode.com/api/send/message"
     
-    # 构造 HTML 内容，使用 img 标签显示图片
+    # 提示信息
     content = (
         f"<h1>{summary}</h1><br>"
         f"📅 日期: {datetime.datetime.now().strftime('%Y-%m-%d')}<br>"
         f"<p>恒生科技 vs 铜油比 (滞后{lag_days}天)</p>"
         f"<hr>"
         f"<img src='{img_url}' width='100%' /><br>"
-        f"<p style='font-size:12px; color:gray;'>*图片由 GitHub Actions 自动生成</p>"
+        f"<p style='font-size:12px; color:gray;'>*图片经由 jsDelivr 加速</p>"
     )
     
     data = {
         "appToken": WXPUSHER_TOKEN,
         "content": content,
         "summary": summary,
-        "contentType": 2, # HTML
+        "contentType": 2, 
         "uids": [WXPUSHER_UID],
     }
     try:
@@ -78,6 +90,7 @@ def send_wxpusher_image(img_url, summary):
         print(f"微信推送错误: {e}")
 
 # ================= 数据获取与绘图 =================
+# (这部分代码和之前一模一样，为了篇幅我简化展示，请保留之前的逻辑)
 def get_data(symbol, type='future'):
     try:
         df = None
@@ -104,7 +117,7 @@ def generate_chart():
     brent_oil = get_data("OIL", type='future')
 
     if hstech is None or lme_copper is None or brent_oil is None:
-        print("❌ 数据获取失败，终止绘图")
+        print("❌ 数据获取失败")
         return None
 
     # 数据处理
@@ -124,26 +137,23 @@ def generate_chart():
 
     plot_hstech = plot_hstech[plot_hstech.index >= pd.to_datetime(view_start_date)]
     plot_ratio = plot_ratio[plot_ratio.index >= pd.to_datetime(view_start_date)]
-
+    
     today = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     plot_hstech = plot_hstech[plot_hstech.index <= today]
 
-    # 坐标计算
     ratio_ylim_bottom = hstech_ylim_bottom * ratio_factor
     ratio_ylim_top = hstech_ylim_top * ratio_factor
 
     # 绘图
     plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'bmh')
-    fig, ax1 = plt.subplots(figsize=(12, 8)) # 调整尺寸适配手机屏幕
+    fig, ax1 = plt.subplots(figsize=(12, 8))
 
-    # HSTECH
     color1 = '#004c6d'
     ax1.plot(plot_hstech.index, plot_hstech, color=color1, linewidth=1.8, label='Hang Seng TECH', alpha=0.95)
     ax1.set_ylabel('Hang Seng TECH Index', color=color1, fontsize=12, fontweight='bold')
     ax1.tick_params(axis='y', labelcolor=color1)
     ax1.set_ylim(hstech_ylim_bottom, hstech_ylim_top)
 
-    # Ratio
     ax2 = ax1.twinx()
     color2 = '#d62728'
     ax2.plot(plot_ratio.index, plot_ratio, color=color2, linewidth=1.5, linestyle='-',
@@ -152,10 +162,8 @@ def generate_chart():
     ax2.tick_params(axis='y', labelcolor=color2)
     ax2.set_ylim(ratio_ylim_bottom, ratio_ylim_top)
 
-    # 辅助
     if plot_ratio.index[0] <= today <= plot_ratio.index[-1]:
         ax1.axvline(today, color='black', linestyle='--', linewidth=1.5)
-        # ax1.text(today, ax1.get_ylim()[0], ' TODAY', rotation=90, verticalalignment='bottom')
 
     plt.title(f'HSTECH vs Copper/Oil (+{lag_days}d)', fontsize=14)
     ax1.set_xlim(left=pd.to_datetime(view_start_date), right=plot_ratio.index[-1])
@@ -164,7 +172,6 @@ def generate_chart():
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
 
-    # X轴格式
     date_fmt = mdates.DateFormatter('%y-%m-%d')
     ax1.xaxis.set_major_formatter(date_fmt)
     ax1.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
@@ -172,23 +179,27 @@ def generate_chart():
     ax1.grid(True, which='major', axis='x', linestyle='--', alpha=0.5)
     plt.subplots_adjust(bottom=0.15)
 
-    # 保存图片
-    filename = "chart_output.png"
+    # 【重点】保存的文件名固定，覆盖旧图，防止仓库无限膨胀
+    filename = "latest_chart.png"
     plt.savefig(filename, dpi=100)
-    print(f"✅ 图表已生成: {filename}")
-    plt.close() # 释放内存
+    plt.close()
     return filename
 
 if __name__ == "__main__":
     # 1. 生成图片
-    img_path = generate_chart()
+    filename = generate_chart()
     
-    if img_path:
-        # 2. 上传图片
-        img_url = upload_image_to_catbox(img_path)
-        
-        if img_url:
-            # 3. 发送微信
-            send_wxpusher_image(img_url, "每日图表: 恒生科技趋势")
+    if filename:
+        # 2. 推送到 GitHub
+        if push_image_to_github(filename):
+            # 3. 获取加速链接
+            img_url = get_cdn_url(filename)
+            
+            if img_url:
+                print(f"图片链接: {img_url}")
+                # 4. 发送微信
+                send_wxpusher_image(img_url, "每日图表: 恒生科技趋势")
+            else:
+                print("URL生成失败")
         else:
-            print("图片上传失败，无法发送")
+            print("Git推送失败")
