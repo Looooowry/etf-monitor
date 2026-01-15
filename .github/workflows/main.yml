@@ -1,5 +1,9 @@
 name: ETF MACD Monitor
 
+# 【新增】赋予仓库写权限，这样才能把图片存回来
+permissions:
+  contents: write
+
 on:
   schedule:
     # 每天运行两次 (周一到周五)
