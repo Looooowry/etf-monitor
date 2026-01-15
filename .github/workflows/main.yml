@@ -33,3 +33,10 @@ jobs:
         WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
       run: |
         python monitor.py
+
+    - name: Run Chart Monitor
+      env:
+        WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
+        WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+      run: |
+        python chart_monitor.py
