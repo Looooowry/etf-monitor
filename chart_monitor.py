@@ -1,18 +1,20 @@
 import akshare as ak
 import pandas as pd
 import matplotlib
-matplotlib.use('Agg') # 必须：设置后台绘图，不显示窗口
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import datetime
 import requests
 import os
 import base64
+import sys
+import pytz # 需要用到时区
 
 # ================= 配置区域 =================
 WXPUSHER_TOKEN = os.environ.get('WXPUSHER_TOKEN', '')
 WXPUSHER_UID = os.environ.get('WXPUSHER_UID', '')
-IMGBB_KEY = os.environ.get('IMGBB_KEY', '') # 从 Secrets 读取
+IMGBB_KEY = os.environ.get('IMGBB_KEY', '')
 
 # 策略参数
 view_start_date = '2024-12-30'
@@ -29,55 +31,43 @@ hstech_ylim_bottom = 2500
 # ================= 核心功能函数 =================
 
 def upload_to_imgbb(file_path):
-    """
-    上传图片到 ImgBB，获取即时直链
-    """
     if not IMGBB_KEY:
-        print("❌ 错误: 未配置 IMGBB_KEY，请检查 GitHub Secrets")
+        print("❌ 错误: 未配置 IMGBB_KEY")
         return None
 
     url = "https://api.imgbb.com/1/upload"
     try:
         print("正在上传图片到 ImgBB...")
         with open(file_path, "rb") as file:
-            # 读取图片并转为 base64
             payload = {
                 "key": IMGBB_KEY,
                 "image": base64.b64encode(file.read()),
             }
-            # 发送请求
             response = requests.post(url, payload)
             json_res = response.json()
             
-            if response.status_code == 200 and json_res['success']:
-                # 获取直接链接 (Direct Link)
+            if response.status_code == 200 and json_res.get('success'):
                 img_url = json_res['data']['url']
                 print(f"✅ 图片上传成功: {img_url}")
                 return img_url
             else:
-                print(f"❌ 上传失败: {json_res}")
+                print(f"❌ ImgBB 上传失败: {response.text}")
                 return None
     except Exception as e:
         print(f"❌ 上传请求出错: {e}")
         return None
 
 def send_wxpusher_image(img_url, summary):
-    """发送带图片的微信消息"""
     url = "http://wxpusher.zjiecode.com/api/send/message"
-    
-    # 获取当前日期
     today = datetime.datetime.now().strftime('%Y-%m-%d')
-    
-    # 构造 HTML 内容
     content = (
         f"<h1>{summary}</h1><br>"
         f"📅 日期: {today}<br>"
         f"<p>恒生科技 vs 铜油比 (滞后{lag_days}天)</p>"
         f"<hr>"
         f"<img src='{img_url}' width='100%' /><br>"
-        f"<p style='font-size:12px; color:gray;'>*图片由 ImgBB 托管</p>"
+        f"<p style='font-size:12px; color:gray;'>由 GitHub Actions 自动生成</p>"
     )
-    
     data = {
         "appToken": WXPUSHER_TOKEN,
         "content": content,
@@ -85,13 +75,10 @@ def send_wxpusher_image(img_url, summary):
         "contentType": 2, 
         "uids": [WXPUSHER_UID],
     }
-    try:
-        requests.post(url, json=data)
-        print("微信推送成功")
-    except Exception as e:
-        print(f"微信推送错误: {e}")
+    requests.post(url, json=data)
+    print("✅ 微信推送成功")
 
-# ================= 数据获取与绘图 (保持原有逻辑) =================
+# ================= 数据获取与绘图 =================
 def get_data(symbol, type='future'):
     try:
         df = None
@@ -121,7 +108,6 @@ def generate_chart():
         print("❌ 数据获取失败")
         return None
 
-    # 数据处理
     futures_df = pd.concat([lme_copper, brent_oil], axis=1, keys=['LME_Copper', 'Brent_Oil'])
     futures_df = futures_df.ffill().bfill()
     raw_ratio = futures_df['LME_Copper'] / futures_df['Brent_Oil']
@@ -145,7 +131,6 @@ def generate_chart():
     ratio_ylim_bottom = hstech_ylim_bottom * ratio_factor
     ratio_ylim_top = hstech_ylim_top * ratio_factor
 
-    # 绘图设置
     plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'bmh')
     fig, ax1 = plt.subplots(figsize=(12, 8))
 
@@ -180,22 +165,30 @@ def generate_chart():
     ax1.grid(True, which='major', axis='x', linestyle='--', alpha=0.5)
     plt.subplots_adjust(bottom=0.15)
 
-    # 保存图片
-    filename = "chart_for_push.png"
+    filename = "chart_push.png"
     plt.savefig(filename, dpi=100)
     plt.close()
     return filename
 
 if __name__ == "__main__":
-    # 1. 生成图片
-    filename = generate_chart()
+    # 【核心修改】时间锁逻辑
+    # 1. 获取当前北京时间
+    tz_cn = pytz.timezone('Asia/Shanghai')
+    now_cn = datetime.datetime.now(tz_cn)
     
-    if filename:
-        # 2. 上传到 ImgBB (解决延迟问题)
-        img_url = upload_to_imgbb(filename)
+    print(f"当前北京时间: {now_cn.strftime('%H:%M')}")
+    
+    # 2. 判断是否是盘中（15点之前）
+    # 如果现在的小时数小于 15 (比如 14点)，说明是盘中，直接退出，不发图
+    if now_cn.hour < 15:
+        print("🕒 处于盘中时间 (<15:00)，跳过图表发送。")
+        sys.exit(0) # 正常退出，不报错
         
+    print("🕒 处于收盘后 (>15:00)，开始生成图表...")
+
+    # 3. 只有满足时间条件才执行下面的逻辑
+    filename = generate_chart()
+    if filename:
+        img_url = upload_to_imgbb(filename)
         if img_url:
-            # 3. 发送微信
             send_wxpusher_image(img_url, "每日图表: 恒生科技趋势")
-        else:
-            print("图片上传失败")
