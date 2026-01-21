@@ -1,18 +1,14 @@
 name: ETF MACD Monitor
 
-# 【新增】赋予仓库写权限，这样才能把图片存回来
 permissions:
   contents: write
 
 on:
   schedule:
-    # 盘中预警：北京时间 14:10 (UTC 06:10)
-    # 即使延迟 40 分钟，也能在 14:50 左右运行
+    # 14:10 盘中预警
     - cron: '10 6 * * 1-5'
-    
-    # 收盘确认：北京时间 15:15 (UTC 07:15)
+    # 15:15 收盘确认
     - cron: '15 7 * * 1-5'
-  # 允许你手动点击按钮测试运行
   workflow_dispatch:
 
 jobs:
@@ -32,13 +28,23 @@ jobs:
       run: |
         pip install -r requirements.txt
         
-    - name: Run Monitor
+    # --- 原版监控 (保留不变) ---
+    - name: Run Original Monitor
       env:
         WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
         WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
       run: |
         python monitor.py
 
+    # --- 【新增】高级风控监控 ---
+    - name: Run Risk Monitor
+      env:
+        WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
+        WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+      run: |
+        python risk_monitor.py
+
+    # --- 图表监控 (保留不变) ---
     - name: Run Chart Monitor
       env:
         WXPUSHER_TOKEN: ${{ secrets.WXPUSHER_TOKEN }}
