@@ -5,8 +5,8 @@ permissions:
 
 on:
   schedule:
-    # 14:10 盘中预警
-    - cron: '10 6 * * 1-5'
+    # 13:30 盘中预警
+    - cron: '30 5 * * 1-5'
     # 15:15 收盘确认
     - cron: '15 7 * * 1-5'
   workflow_dispatch:
