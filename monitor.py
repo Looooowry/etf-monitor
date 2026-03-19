@@ -36,24 +36,34 @@ def send_wxpusher(title, content):
     except Exception as e:
         print(f"推送错误: {e}")
 
+def to_tencent_symbol(code):
+    if code.startswith(("sh", "sz")):
+        return code
+    return f"sh{code}" if code.startswith(("5", "6", "9")) else f"sz{code}"
+
 def get_sina_data_with_retry(code):
-    """使用东方财富接口获取前复权历史数据"""
+    """使用腾讯财经接口获取前复权历史数据"""
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            print(f"📡 正在从东方财富获取数据 (第 {attempt + 1} 次)...")
-            df = ak.fund_etf_hist_em(
-                symbol=code,
-                period="daily",
+            tz_cn = pytz.timezone('Asia/Shanghai')
+            end_date = datetime.datetime.now(tz_cn).strftime("%Y%m%d")
+            tencent_symbol = to_tencent_symbol(code)
+            print(f"📡 正在从腾讯财经获取数据 (第 {attempt + 1} 次): {tencent_symbol}")
+            df = ak.stock_zh_a_hist_tx(
+                symbol=tencent_symbol,
                 start_date=HISTORY_START_DATE,
+                end_date=end_date,
                 adjust="qfq",
             )
-            df = df[['日期', '收盘']].rename(columns={'日期': 'date', '收盘': 'close'})
-            df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
+            df = df[['date', 'close']].copy()
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date')
+            df['date'] = df['date'].dt.strftime('%Y-%m-%d')
             return df
             
         except Exception as e:
-            print(f"❌ 东方财富接口报错: {e}")
+            print(f"❌ 腾讯财经接口报错: {e}")
             time.sleep(5) # 失败稍微歇一下
     
     return None
@@ -61,7 +71,7 @@ def get_sina_data_with_retry(code):
 def get_merged_data():
     """获取数据流程"""
     try:
-        # 1. 获取历史数据 (使用东方财富前复权)
+        # 1. 获取历史数据 (使用腾讯财经前复权)
         df_hist = get_sina_data_with_retry(ETF_CODE)
         if df_hist is None:
             return None
@@ -227,14 +237,14 @@ def bool_to_text(value):
 def check_strategy():
     tz_cn = pytz.timezone('Asia/Shanghai')
     now_cn = datetime.datetime.now(tz_cn)
-    print(f"开始执行策略检查 (东方财富历史源): {now_cn}")
+    print(f"开始执行策略检查 (腾讯财经历史源): {now_cn}")
     
     is_closing_mode = now_cn.hour >= 15
     mode_name = "收盘确认" if is_closing_mode else "盘中预警"
 
     df = get_merged_data()
     if df is None:
-        send_wxpusher("报警: 数据获取失败", "东方财富历史接口和东财实时接口均无法访问，请检查 GitHub 网络。")
+        send_wxpusher("报警: 数据获取失败", "腾讯财经历史接口和东财实时接口均无法访问，请检查 GitHub 网络。")
         return
 
     if len(df) < SLOW_PERIOD + SIGNAL_PERIOD:
