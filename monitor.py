@@ -47,7 +47,7 @@ def normalize_yyyymmdd(value, default):
     digits_only = "".join(ch for ch in str(value).strip() if ch.isdigit())
     return digits_only if len(digits_only) == 8 else default
 
-def get_sina_data_with_retry(code):
+def get_tencent_data_with_retry(code):
     """使用腾讯财经接口获取前复权历史数据"""
     max_retries = 3
     for attempt in range(max_retries):
@@ -84,7 +84,7 @@ def get_merged_data():
     """获取数据流程"""
     try:
         # 1. 获取历史数据 (使用腾讯财经前复权)
-        df_hist = get_sina_data_with_retry(ETF_CODE)
+        df_hist = get_tencent_data_with_retry(ETF_CODE)
         if df_hist is None:
             return None
             
