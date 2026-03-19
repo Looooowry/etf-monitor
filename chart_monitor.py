@@ -10,6 +10,7 @@ import os
 import base64
 import sys
 import pytz # 需要用到时区
+from env_config import get_env_float, get_env_int, get_env_str
 
 # ================= 配置区域 =================
 WXPUSHER_TOKEN = os.environ.get('WXPUSHER_TOKEN', '')
@@ -17,16 +18,16 @@ WXPUSHER_UID = os.environ.get('WXPUSHER_UID', '')
 IMGBB_KEY = os.environ.get('IMGBB_KEY', '')
 
 # 策略参数
-view_start_date = '2024-12-30'
-lag_days = 150
-fetch_start_date = '2023-01-01'
+view_start_date = get_env_str("CHART_VIEW_START_DATE", "2024-12-30")
+lag_days = get_env_int("CHART_LAG_DAYS", 150)
+fetch_start_date = get_env_str("CHART_FETCH_START_DATE", "2023-01-01")
 
 # 锚点参数
-anchor_hstech = 6700
-anchor_ratio = 160
+anchor_hstech = get_env_float("CHART_ANCHOR_HSTECH", 6700)
+anchor_ratio = get_env_float("CHART_ANCHOR_RATIO", 160)
 ratio_factor = anchor_ratio / anchor_hstech
-hstech_ylim_top = 9500
-hstech_ylim_bottom = 2500
+hstech_ylim_top = get_env_float("CHART_HSTECH_YLIM_TOP", 9500)
+hstech_ylim_bottom = get_env_float("CHART_HSTECH_YLIM_BOTTOM", 2500)
 
 # ================= 核心功能函数 =================
 

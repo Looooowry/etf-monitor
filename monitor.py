@@ -5,20 +5,21 @@ import datetime
 import os
 import pytz
 import time
+from env_config import get_env_float, get_env_int, get_env_str
 
 # ================= 配置区域 =================
 WXPUSHER_TOKEN = os.environ.get('WXPUSHER_TOKEN', '')
 WXPUSHER_UID = os.environ.get('WXPUSHER_UID', '')
 
-ETF_CODE = "510880"
-FAST_PERIOD = 20
-SLOW_PERIOD = 40
-SIGNAL_PERIOD = 15
-MA_PERIOD = 250
-SELL_PROFIT_TARGET = 0.075
-INITIAL_CAPITAL = 100000.0
-LOT_SIZE = 100
-HISTORY_START_DATE = "20180101"
+ETF_CODE = get_env_str("ETF_CODE", "510880")
+FAST_PERIOD = get_env_int("MACD_FAST_PERIOD", 20)
+SLOW_PERIOD = get_env_int("MACD_SLOW_PERIOD", 40)
+SIGNAL_PERIOD = get_env_int("MACD_SIGNAL_PERIOD", 15)
+MA_PERIOD = get_env_int("MA_PERIOD", 250)
+SELL_PROFIT_TARGET = get_env_float("SELL_PROFIT_TARGET", 0.075)
+INITIAL_CAPITAL = get_env_float("INITIAL_CAPITAL", 100000.0)
+LOT_SIZE = get_env_int("LOT_SIZE", 100)
+HISTORY_START_DATE = get_env_str("HISTORY_START_DATE", "20180101")
 
 # ================= 核心函数 =================
 def send_wxpusher(title, content):
