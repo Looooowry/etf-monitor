@@ -20,6 +20,7 @@ SELL_PROFIT_TARGET = get_env_float("SELL_PROFIT_TARGET", 0.075)
 INITIAL_CAPITAL = get_env_float("INITIAL_CAPITAL", 100000.0)
 LOT_SIZE = get_env_int("LOT_SIZE", 100)
 HISTORY_START_DATE = get_env_str("HISTORY_START_DATE", "20180101")
+TENCENT_MIN_START_DATE = "20230101"
 
 # ================= 核心函数 =================
 def send_wxpusher(title, content):
@@ -37,9 +38,14 @@ def send_wxpusher(title, content):
         print(f"推送错误: {e}")
 
 def to_tencent_symbol(code):
-    if code.startswith(("sh", "sz")):
-        return code
-    return f"sh{code}" if code.startswith(("5", "6", "9")) else f"sz{code}"
+    normalized = str(code).strip().lower()
+    if normalized.startswith(("sh", "sz")):
+        return normalized
+    return f"sh{normalized}" if normalized.startswith(("5", "6", "9")) else f"sz{normalized}"
+
+def normalize_yyyymmdd(value, default):
+    digits_only = "".join(ch for ch in str(value).strip() if ch.isdigit())
+    return digits_only if len(digits_only) == 8 else default
 
 def get_sina_data_with_retry(code):
     """使用腾讯财经接口获取前复权历史数据"""
@@ -48,11 +54,17 @@ def get_sina_data_with_retry(code):
         try:
             tz_cn = pytz.timezone('Asia/Shanghai')
             end_date = datetime.datetime.now(tz_cn).strftime("%Y%m%d")
+            start_date = normalize_yyyymmdd(HISTORY_START_DATE, TENCENT_MIN_START_DATE)
+            if start_date < TENCENT_MIN_START_DATE:
+                start_date = TENCENT_MIN_START_DATE
             tencent_symbol = to_tencent_symbol(code)
-            print(f"📡 正在从腾讯财经获取数据 (第 {attempt + 1} 次): {tencent_symbol}")
+            print(
+                f"📡 正在从腾讯财经获取数据 (第 {attempt + 1} 次): "
+                f"{tencent_symbol}, start={start_date}, end={end_date}"
+            )
             df = ak.stock_zh_a_hist_tx(
                 symbol=tencent_symbol,
-                start_date=HISTORY_START_DATE,
+                start_date=start_date,
                 end_date=end_date,
                 adjust="qfq",
             )
