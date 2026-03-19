@@ -1,0 +1,29 @@
+name: Tencent Diagnostic
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+
+    - name: Show AkShare version
+      run: |
+        python -c "import akshare as ak; print(ak.__version__)"
+
+    - name: Run Tencent diagnostic
+      run: |
+        python tx_diagnostic.py
