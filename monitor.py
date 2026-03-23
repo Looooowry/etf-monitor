@@ -88,14 +88,25 @@ def get_merged_data():
         if df_hist is None:
             return None
             
-        # 2. 尝试获取实时数据 (依然尝试东财，因为新浪实时接口比较复杂，如果东财挂了就只用历史)
+        # 2. 尝试获取实时数据 (使用同花顺 ETF 实时行情，失败则只用历史)
         try:
-            df_spot = ak.fund_etf_spot_em()
-            row = df_spot[df_spot['代码'] == ETF_CODE]
+            df_spot = ak.fund_etf_spot_ths()
+            row = df_spot[df_spot['基金代码'].astype(str).str.strip() == str(ETF_CODE).strip()]
             if not row.empty:
-                current_price = float(row.iloc[0]['最新价'])
+                current_price = pd.to_numeric(
+                    row.iloc[0].get('当前-单位净值', row.iloc[0].get('最新-单位净值')),
+                    errors='coerce',
+                )
+                if pd.notna(current_price):
+                    current_price = float(current_price)
+                else:
+                    raise ValueError("同花顺实时行情未返回可用净值")
                 tz_cn = pytz.timezone('Asia/Shanghai')
-                current_date = datetime.datetime.now(tz_cn).strftime('%Y-%m-%d')
+                query_date = row.iloc[0].get('查询日期')
+                if pd.notna(query_date):
+                    current_date = pd.to_datetime(query_date).strftime('%Y-%m-%d')
+                else:
+                    current_date = datetime.datetime.now(tz_cn).strftime('%Y-%m-%d')
                 
                 if df_hist.iloc[-1]['date'] != current_date:
                     print(f"拼接实时数据: {current_date} 价格: {current_price}")
@@ -256,7 +267,7 @@ def check_strategy():
 
     df = get_merged_data()
     if df is None:
-        send_wxpusher("报警: 数据获取失败", "腾讯财经历史接口和东财实时接口均无法访问，请检查 GitHub 网络。")
+        send_wxpusher("报警: 数据获取失败", "腾讯财经历史接口和同花顺实时接口均无法访问，请检查 GitHub 网络。")
         return
 
     if len(df) < SLOW_PERIOD + SIGNAL_PERIOD:
